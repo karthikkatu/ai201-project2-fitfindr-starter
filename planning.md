@@ -136,14 +136,84 @@ Write out what a full user interaction looks like from start to finish — tool 
 
 **Example user query:** "I'm looking for a vintage graphic tee under $30. I mostly wear baggy jeans and chunky sneakers. What's out there and how would I style it?"
 
-**Step 1:**
-<!-- What does the agent do first? Which tool is called? With what input? -->
+**Step 1: Search for matching listings**
 
-**Step 2:**
-<!-- What happens next? What was returned from step 1? What tool is called now? -->
+The agent extracts the search criteria from the user's request:
 
-**Step 3:**
-<!-- Continue until the full interaction is complete -->
+- Description: "vintage graphic tee"
+- Maximum price: $30
+- Size: not specified
+
+The agent calls:
+
+search_listings(
+    description="vintage graphic tee",
+    size=None,
+    max_price=30.0
+)
+
+The tool searches the listings dataset and returns matching items sorted by relevance. The agent selects the highest-ranked result.
+
+Example result:
+
+{
+  "title": "Faded Band Tee",
+  "price": 22,
+  "platform": "Depop",
+  "condition": "Good",
+  "size": "M"
+}
+
+If no listings are found, the agent informs the user and suggests adjusting the search criteria.
+
+**Step 2: Generate an outfit suggestion**
+
+The selected listing from Step 1 is stored in the agent's state and passed to the outfit tool along with the user's wardrobe information.
+
+The agent calls:
+
+suggest_outfit(
+    new_item=<Faded Band Tee>,
+    wardrobe=<user wardrobe>
+)
+
+The tool analyzes the new item and wardrobe pieces to generate styling recommendations.
+
+Example result:
+
+"Pair the faded band tee with your baggy jeans and chunky sneakers for a relaxed 90s-inspired look. Add a flannel overshirt for layering."
+
+If the wardrobe is empty or has too few items, the tool provides a generic styling suggestion instead of failing and non availability in the wardrobe is implied in the result.
+
+**Step 3: Create a shareable fit card**
+
+The outfit recommendation and selected listing are passed to the final tool.
+
+The agent calls:
+
+create_fit_card(
+    outfit=<outfit suggestion>,
+    new_item=<Faded Band Tee>
+)
+
+The tool generates a short social-media-style caption describing the complete outfit.
+
+Example result:
+
+"Found this faded band tee for $22 on Depop and it fits perfectly with my baggy jeans and chunky sneakers 🔥 thrift finds never miss."
+
+If the tool encounters an issue, the agent returns the outfit recommendation without the fit card rather than ending the workflow.
 
 **Final output to user:**
-<!-- What does the user actually see at the end? -->
+
+Top Match:
+- Faded Band Tee
+- $22
+- Depop
+- Good condition
+
+Outfit Suggestion:
+Pair the faded band tee with your baggy jeans and chunky sneakers for a relaxed 90s-inspired look. Add a flannel overshirt for layering.
+
+Fit Card:
+"Found this faded band tee for $22 on Depop and it fits perfectly with my baggy jeans and chunky sneakers 🔥 thrift finds never miss."
