@@ -9,80 +9,118 @@
 
 ## Tools
 
-List every tool your agent will use. For each tool, fill in all four fields.
-You must have at least 3 tools. The three required tools are listed — add any additional tools below them.
-
 ### Tool 1: search_listings
 
 **What it does:**
-<!-- Describe what this tool does in 1–2 sentences -->
+Searches the listings dataset for secondhand items that match the user’s request. It filters by the item description, optional size, and maximum price, then returns the best matches sorted by relevance.
 
 **Input parameters:**
-<!-- List each parameter, its type, and what it represents -->
-- `description` (str): ...
-- `size` (str): ...
-- `max_price` (float): ...
+- `description` (str): A short natural-language description of the item the user wants, such as "vintage graphic tee" or "black midi skirt".
+- `size` (str): The requested size, such as `XS`, `S`, `M`, `L` or any non-standard size or `None` if size is not specified.
+- `max_price` (float): The highest price the user is willing to pay.
 
 **What it returns:**
-<!-- Describe the return value — what fields does a result contain? -->
+A list of matching listing objects. Each result includes fields such as:
+- `id`
+- `title`
+- `description`
+- `category`
+- `style_tags`
+- `size`
+- `condition`
+- `price`
+- `colors`
+- `brand`
+- `platform`
+
+The list should be ordered from most relevant to least relevant, and the agent should use the top result as the main item when a match exists.
 
 **What happens if it fails or returns nothing:**
-<!-- What should the agent do if no listings match? -->
+If no listings match, the agent tells the user that nothing was found and suggests loosening the search, such as increasing the budget or removing the size filter. 
 
 ---
 
 ### Tool 2: suggest_outfit
 
 **What it does:**
-<!-- Describe what this tool does in 1–2 sentences -->
+Takes the selected listing from `search_listings` and combines it with the user’s wardrobe to suggest one or more complete outfit ideas. It helps the user understand how to wear the new thrifted item with pieces they already own.
 
 **Input parameters:**
-<!-- List each parameter, its type, and what it represents -->
-- `new_item` (dict): ...
-- `wardrobe` (dict): ...
+- `new_item` (dict): The chosen listing from `search_listings`, including the item’s title, category, style tags, size, condition, price, and other metadata.
+- `wardrobe` (dict): The user’s current wardrobe data, including clothing items already owned and their relevant attributes.
 
 **What it returns:**
-<!-- Describe the return value -->
+A styling recommendation or list of outfit suggestions. The output should describe how to combine the new item with wardrobe pieces, and may include notes about layering, fit, color matching, or styling details. If multiple outfit options are possible, the tool can return more than one suggestion.
 
 **What happens if it fails or returns nothing:**
-<!-- What should the agent do if the wardrobe is empty or no outfit can be suggested? -->
+If the wardrobe is empty or too limited, the agent should still provide a fallback styling suggestion based on the new item alone, rather than crashing. If no useful outfit can be generated, the agent tells the user that more wardrobe details are needed and gives a simple generic styling tip.
 
 ---
 
 ### Tool 3: create_fit_card
 
 **What it does:**
-<!-- Describe what this tool does in 1–2 sentences -->
+Generates a short, shareable outfit description that sounds like a social media caption or fit check post. It turns the outfit suggestion into a polished, personality-driven line the user can reuse or share.
 
 **Input parameters:**
-<!-- List each parameter, its type, and what it represents -->
-- `outfit` (...): ...
+- `outfit` (str or dict): The outfit suggestion produced by `suggest_outfit`, including the styling idea and key wardrobe pieces.
+- `new_item` (dict): The thrifted item found by `search_listings`, used so the fit card can reference the item naturally and accurately.
 
 **What it returns:**
-<!-- Describe the return value -->
+A short caption-style text string describing the full outfit in a casual, shareable tone. The output should feel specific to the item and outfit, not generic or repeated.
 
 **What happens if it fails or returns nothing:**
-<!-- What should the agent do if the outfit data is incomplete? -->
-
----
-
-### Additional Tools (if any)
-
-<!-- Copy the block above for any tools beyond the required three -->
+If the outfit data is incomplete, the agent should skip the fit card and show the outfit suggestion instead. If the tool fails entirely, the agent should still return the listing summary and outfit advice so the user does not lose the main result.
 
 ---
 
 ## Planning Loop
 
 **How does your agent decide which tool to call next?**
-<!-- Describe the logic your planning loop uses. What does it look at? What conditions change its behavior? How does it know when it's done? -->
+
+The agent uses a simple conditional loop that checks the current session state after each tool call.
+
+1. **Start with the user request.**  
+   The agent first extracts the item description, size, price limit, and any wardrobe information from the user message. It stores these values in session state so they can be reused later.
+
+2. **Call `search_listings` first.**  
+   The agent always begins by calling `search_listings(description, size, max_price)` because it needs a candidate item before it can do anything else.
+
+3. **Check whether search results are empty.**  
+   After `search_listings` returns:
+   - If `results` is empty, the agent sets `session.error_message` to something like “No matching listings found,” sends a helpful message to the user, and stops.
+   - If `results` contains one or more listings, the agent sets `session.selected_item = results[0]` and continues.
+
+4. **Call `suggest_outfit` only if a valid item was found.**  
+   The agent passes `session.selected_item` and the user’s wardrobe into `suggest_outfit(new_item, wardrobe)`.
+
+5. **Check whether outfit suggestions were produced.**  
+   After `suggest_outfit` returns:
+   - If the wardrobe is empty or the tool cannot build a useful outfit, the agent sets `session.outfit_fallback = true` and returns a simpler styling message based on the new item alone.
+   - If the tool returns a valid outfit suggestion, the agent stores it in `session.outfit`.
+
+6. **Call `create_fit_card` only when outfit data exists.**  
+   The agent calls `create_fit_card(outfit, new_item)` using the outfit suggestion and the selected listing.
+
+7. **Check whether the fit card was created successfully.**  
+   After `create_fit_card` returns:
+   - If it succeeds, the agent stores the caption in `session.fit_card` and includes it in the final response.
+   - If it fails or returns nothing, the agent skips the fit card and still returns the listing summary plus the outfit suggestion.
+
+8. **Stop when the workflow is complete.**  
+   The loop ends once the agent has either:
+   - returned an error or no-results message after `search_listings`, or
+   - produced the selected item, outfit suggestion, and optional fit card for the final response.
+
+This means the agent does not call every tool automatically every time. It only moves to the next step when the previous step produced usable data.
 
 ---
 
 ## State Management
 
 **How does information from one tool get passed to the next?**
-<!-- Describe how your agent stores and accesses state within a session. What data is tracked? How is it passed between tool calls? -->
+
+The agent keeps a session state object during the interaction. After the user’s message is parsed, the agent stores the search terms, any size or price constraints, and any wardrobe information in state so they can be reused across tool calls. When `search_listings` returns results, the agent saves the chosen item as `selected_item` in session state and passes that exact object into `suggest_outfit` without asking the user to repeat it. If `suggest_outfit` returns a usable outfit, the agent stores it as `outfit_suggestion` and then passes both `selected_item` and `outfit_suggestion` into `create_fit_card`. If any step fails, the agent updates the same session state with an error or fallback flag so it knows whether to stop early or continue with a simpler response.
 
 ---
 
@@ -92,37 +130,57 @@ For each tool, describe the specific failure mode you're handling and what the a
 
 | Tool | Failure mode | Agent response |
 |------|-------------|----------------|
-| search_listings | No results match the query | |
-| suggest_outfit | Wardrobe is empty | |
-| create_fit_card | Outfit input is missing or incomplete | |
+| search_listings | No results match the query | The agent tells the user that nothing matched, suggests broadening the search by changing the description, size, or price limit, and stops instead of calling later tools with empty input. |
+| suggest_outfit | Wardrobe is empty | The agent returns a fallback styling suggestion based on the new item alone, or asks the user to provide more wardrobe details if needed. It does not crash or try to invent wardrobe pieces. |
+| create_fit_card | Outfit input is missing or incomplete | The agent skips the fit card step and returns the item summary plus the outfit suggestion it already has. If needed, it asks for a clearer outfit description before trying again. |
 
 ---
 
 ## Architecture
 
-<!-- Draw a diagram of your agent showing how the components connect:
-     User input → Planning Loop → Tools (search_listings, suggest_outfit, create_fit_card)
-                                                                          ↕
-                                                                   State / Session
-     Show what triggers each tool, how state flows between them, and where error paths branch off.
-     ASCII art, a Mermaid diagram (https://mermaid.js.org/syntax/flowchart.html), or an embedded
-     sketch are all fine. You'll share this diagram with an AI tool when asking it to implement
-     the planning loop and each individual tool. -->
+```mermaid
+flowchart TD
+    U[User Query] --> P[Planning Loop]
+
+    P -->|extract description, size, max_price| S[search_listings]
+
+    S -->|no matches| E[Error Path]
+    E --> R1[Return early to user]
+
+    S -->|matches found| SS[Store selected item in session]
+
+    SS --> O[suggest_outfit]
+    O --> SO[Store outfit suggestion in session]
+
+    SO --> F[create_fit_card]
+    F --> SF[Store fit card in session]
+
+    SF --> R2[Return final response to user]
+```
 
 ---
 
 ## AI Tool Plan
 
-<!-- For each part of the implementation below, describe:
-     - Which AI tool you plan to use (Claude, Copilot, ChatGPT, etc.)
-     - What you'll give it as input (which sections of this planning.md, your agent diagram)
-     - What you expect it to produce
-     - How you'll verify the output matches your spec before moving on
+I will use **Claude Code** to help implement the agent, because it is useful for turning a written spec into working code while keeping the structure of the project intact.
 
-     "I'll use AI to help me code" is not a plan.
-     "I'll give Claude my Tool 1 spec (inputs, return value, failure mode) and ask it to implement
-     search_listings() using load_listings() from the data loader — then test it against 3 queries
-     before trusting it" is a plan. -->
+### Milestone 1: Build `search_listings`
+I will give Claude Code the **Tool 1: search_listings** section from `planning.md`, including the input parameters, return value, and failure behavior. I will also give it the relevant data loader details so it uses the provided listings data instead of inventing its own format. I expect it to produce a function that filters by `description`, `size`, and `max_price`, returns a ranked list of matching listings, and handles the no-results case cleanly. Before using it, I will verify that the code checks all three filters, returns the correct fields for each listing, and produces a clear empty-result response when nothing matches. I will test it with at least three queries: one normal match, one size mismatch, and one no-results case.
+
+### Milestone 2: Build `suggest_outfit`
+I will give Claude Code the **Tool 2: suggest_outfit** section from `planning.md`, plus the wardrobe schema and the agent diagram so it understands how the selected item flows into the next step. I expect it to generate a function that combines the new item with wardrobe items and returns one or more outfit suggestions. Before using it, I will check that it accepts the required inputs, works with a full wardrobe, and still returns a fallback suggestion when the wardrobe is empty or too small. I will test it with both `get_example_wardrobe()` and `get_empty_wardrobe()`.
+
+### Milestone 3: Build `create_fit_card`
+I will give Claude Code the **Tool 3: create_fit_card** section from `planning.md`, including the expected input types, return format, and failure handling. I expect it to produce a function that turns the outfit suggestion into a short shareable caption with a different output for different inputs. Before trusting it, I will verify that it uses both the outfit and selected item, produces a brief social-style line, and does not repeat the same wording for different outfits. I will test it with at least two different outfit inputs.
+
+### Milestone 4: Implement the planning loop and state management
+I will give Claude Code the **Planning Loop** section and the **Architecture** diagram from `planning.md`. I expect it to implement conditional control flow that stores the selected listing in session state, passes it into `suggest_outfit`, and only calls `create_fit_card` after a valid outfit exists. Before using it, I will verify that the code stops early when `search_listings` returns no results, preserves state across tool calls, and does not run tools in a fixed sequence regardless of the output. I will test the full multi-step flow from user query to final fit card.
+
+### Milestone 5: Verify error handling and final demo behavior
+I will use Claude Code to help review the full implementation against the **error handling** parts of `planning.md`, especially the no-results path and the empty-wardrobe fallback. I expect it to help me spot missing branches or inconsistent return values. Before finalizing, I will verify that each tool fails gracefully, the agent returns useful user-facing messages, and the demo flow matches the step-by-step example in `planning.md`. I will run end-to-end tests for success, partial failure, and no-match cases.
+
+### Final check
+After each milestone, I will compare the code output against the exact tool specs in `planning.md` and the architecture diagram. I will not move to the next milestone until the current one behaves exactly as described in the plan.
 
 **Milestone 3 — Individual tool implementations:**
 
