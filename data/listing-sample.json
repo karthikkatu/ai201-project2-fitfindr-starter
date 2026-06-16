@@ -1,0 +1,28 @@
+[
+  {
+    "id": "lst_001",
+    "title": "Vintage Levi's 501 Jeans — Medium Wash",
+    "description": "Classic 501s in a perfect medium wash. Some light fading at the knees which adds to the vintage look. No rips or stains.",
+    "category": "bottoms",
+    "style_tags": ["vintage", "classic", "denim", "streetwear"],
+    "size": "W30 L30",
+    "condition": "good",
+    "price": 38.00,
+    "colors": ["blue", "indigo"],
+    "brand": "Levi's",
+    "platform": "depop"
+  },
+  {
+    "id": "lst_002",
+    "title": "Y2K Baby Tee — Butterfly Print",
+    "description": "Super cute early 2000s baby tee with butterfly graphic. Fitted crop length. Tag says medium but fits like a small.",
+    "category": "tops",
+    "style_tags": ["y2k", "vintage", "graphic tee", "cottagecore"],
+    "size": "S/M",
+    "condition": "excellent",
+    "price": 18.00,
+    "colors": ["white", "pink", "purple"],
+    "brand": null,
+    "platform": "depop"
+  }
+]
